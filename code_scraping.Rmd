@@ -1,0 +1,150 @@
+---
+output:
+  html_document: default
+  pdf_document: default
+---
+# Scopus Search Scrape
+The code below makes scrapes search data from Scopus to collate the count of published documents from specific search terms.
+
+```{r}
+library(rvest)
+library(stringr)
+library(reshape)
+library(readr)
+library(gplots)
+library(ggplot2)
+library(viridis)
+library(scico)
+library(RColorBrewer)
+```
+
+First, get a general search URL from Scopus. Here, I have generally just searched for $urbanisation$. 
+
+```{r}
+URL <-'https://www.scopus.com/results/results.uri?numberOfFields=0&src=s&clickedLink=&edit=&editSaveSearch=&origin=searchbasic&authorTab=&affiliationTab=&advancedTab=&scint=1&menu=search&tablin=&searchterm1=urbanisation&field1=TITLE_ABS_KEY&dateType=Publication_Date_Type&yearFrom=Before+1960&yearTo=Present&loadDate=7&documenttype=All&accessTypes=All&resetFormLink=&st1=urbanisation&st2=&sot=b&sdt=b&sl=27&s=TITLE-ABS-KEY%28urbanisation%29&sid=86370a09dc97d6df569d5e77acaf3d6e&searchId=86370a09dc97d6df569d5e77acaf3d6e&txGid=40c0feb404cc754db4a2c091d1aacd07&sort=plf-f&originationType=b&rr='
+```
+
+We then get a list of search terms. Here it is a $.csv$ of urbanisation themes work in Southeast Asia. Note the syntax for searching in the CSV. 
+```{r}
+theme <- read.csv("names.csv", header = FALSE)
+theme <- unlist(lapply(function(X) paste("", theme$V1[X], "", sep = ""), X = 1:length(theme$V1)))
+
+head(theme)
+```
+
+Going through the list of these themes - for example $Southeast_Asia+Accessibility$, we create a list of URLs that R will go through. It subs our general $urbanisation$ term out with the search terms listed in the $names.csv$. 
+
+The function to run through all the hyperlinks created in our $URLS$ item. $.resultsCount$ is the element name within the Scopus search results page. 
+
+```{r}
+URLS <- lapply(function(X) gsub("urbanisation", theme[X], URL), X = 1:length(theme))
+
+themecounts <- rep(NA, length(theme))
+
+for(i in 1:length(URLS))
+{
+  # print(i/length(URLS))
+  readingSite <- read_html(URLS[[i]])               # read the html from site 
+  numberOfHits <- as.character(html_nodes(readingSite, ".resultsCount"))  # extract specific info
+  if(length(numberOfHits) == 0)
+  {
+  themecounts[i] <- 0
+  print("none") 
+  next()  
+  }
+  print(numberOfHits) # print number of hits
+  themecounts[i] <- str_extract_all(numberOfHits,"\\(?[0-9,.]+\\)?")[[1]]
+}
+``` 
+
+Combining theme names with counts
+```{r}
+fullData <- data.frame(theme = theme, counts = unlist(themecounts))
+head(fullData)
+
+write.csv(fullData, file = "ScopusSearch.csv", row.names = FALSE)
+
+data <- read.csv("ScopusSearch.csv")
+
+```
+
+# Creating a heatmap for our results.
+
+I cleaned the data in Excel and imported with the $count$ set to numeric. You can do it in R.
+```{r}
+data_cleaned <- read_csv("data_cleaned.csv", 
+    col_types = cols(Accessibility = col_number(), 
+                     Equity = col_number(),
+                     `Land Cover` = col_number(), 
+                     `Land use` = col_number(),
+                     Mobility = col_number(),
+                    Segregation = col_number(), 
+                    `Spatial Interaction` = col_number(), 
+                    Sprawl = col_number(), 
+                    `Urban Accessibility` = col_number(), 
+                    `Urban Development` = col_number(),
+                    `Urban Growth` = col_number(),
+                    `Urban Segregation` = col_number(),
+                    Urbanisation = col_number()))
+str(data_cleaned)
+data.1 <- as.data.frame(data_cleaned)
+```
+
+
+Preparing the data as matrix
+```{r}
+row.names(data.1) <- data_cleaned$region
+data <- data.1[,2:14]
+data.m <- data.matrix(data)
+ScopusSearch_2 <- melt(data.m)
+```
+
+Heatmap with base R
+```{r}
+heatmap <- heatmap.2(data.m, 
+                     trace = 'none',
+                     scale='none', 
+                     col=brewer.pal(11, 'RdBu'))
+
+heatmap2 <- heatmap.2(data.m, 
+                      scale = "none", 
+                      col = bluered(100), 
+                      trace = "none", 
+                      density.info = "none")
+
+data.2 <- as.data.frame(ScopusSearch_2)
+
+``` 
+
+```{r}
+hm.palette <- colorRampPalette(rev(brewer.pal(9, 'PuBuGn')), space='Lab')
+
+ggplot(data.2, aes(data.2$X2,X1, fill=value)) +
+  geom_tile() +
+  scale_x_discrete() +
+  scale_y_discrete() +
+  scale_fill_viridis()+
+  geom_text(aes(label = round(value))) +
+  theme_minimal()
+  
+```
+
+```{r}
+yes_map <- heatmap.2(data.m,
+                     cellnote = data.m,
+                     notecex = 1,
+                     Rowv = NA,
+                     Colv=NA,
+                     sepcolor = 'white',
+                     sepwidth = c(0.05,0.05),
+                     notecol = 'White',
+                     scale ='none',
+                     density.info ='none',
+                     trace='none',
+                     dendrogram = 'none',
+                     na.color=par("bg"),
+                     col=viridis(1000),
+                     key=TRUE)
+```
+
+
