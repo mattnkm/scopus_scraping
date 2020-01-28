@@ -44,8 +44,8 @@ themecounts <- rep(NA, length(theme))
 for(i in 1:length(URLS))
 {
   # print(i/length(URLS))
-  readingSite <- read_html(URLS[[i]])               # read the html from site 
-  numberOfHits <- as.character(html_nodes(readingSite, ".resultsCount"))  # extract specific info
+  readingSite <- read_html(URLS[[i]]) # read the html from site 
+  numberOfHits <- as.character(html_nodes(readingSite, ".resultsCount")) # extract specific info
   if(length(numberOfHits) == 0)
   {
   themecounts[i] <- 0
